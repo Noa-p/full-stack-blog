@@ -1,5 +1,17 @@
 "use strict";
 
+function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest(); }
+
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+
+function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
+
+function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
+
+function _iterableToArrayLimit(arr, i) { var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"]; if (_i == null) return; var _arr = []; var _n = true; var _d = false; var _s, _e; try { for (_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) { symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); } keys.push.apply(keys, symbols); } return keys; }
@@ -69,6 +81,9 @@ var isGone = function isGone(prev, next) {
 
 function updateDom(dom, prevProps, nextProps) {
   //Remove old or changed event listeners
+  Object.keys(prevProps).forEach(function (name) {
+    console.log("name:", name);
+  });
   Object.keys(prevProps).filter(isEvent).filter(function (key) {
     return !(key in nextProps) || isNew(prevProps, nextProps)(key);
   }).forEach(function (name) {
@@ -93,6 +108,7 @@ function updateDom(dom, prevProps, nextProps) {
 function commitRoot() {
   deletions.forEach(commitWork);
   commitWork(wipRoot.child);
+  console.log(wipRoot);
   currentRoot = wipRoot;
   wipRoot = null;
 }
@@ -189,10 +205,44 @@ function performUnitOfWork(fiber) {
   }
 }
 
+var wipFiber = null;
+var hookIndex = null;
+
 function updateFunctionComponent(fiber) {
   //TODO
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = [];
   var children = [fiber.type(fiber.props)];
   reconcileChildren(fiber, children);
+}
+
+function useState(initail) {
+  var oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+  var hook = {
+    state: oldHook ? oldHook.state : initail,
+    queue: []
+  };
+  var actions = oldHook ? oldHook.queue : [];
+  actions.forEach(function (action) {
+    hook.state = action(hook.state);
+  });
+
+  var setState = function setState(action) {
+    console.log("action:", _typeof(action), JSON.stringify(action));
+    hook.queue.push(action);
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot
+    };
+    nextUnitOfWork = wipRoot;
+    deletions = [];
+  };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+  return [hook.state, setState];
 }
 
 function updateHostComponent(fiber) {
@@ -249,7 +299,7 @@ function reconcileChildren(wipFiber, elements) {
 
     if (index === 0) {
       wipFiber.child = newFiber;
-    } else {
+    } else if (_element) {
       prevSibling.sibling = newFiber;
     }
 
@@ -260,21 +310,29 @@ function reconcileChildren(wipFiber, elements) {
 
 var MiniReact = {
   createElement: createElement,
-  render: render
+  render: render,
+  useState: useState
 };
 /** @jsx MiniReact.createElement */
 
-function App(props) {
-  return MiniReact.createElement("h1", null, "Hi ", props.name);
+function Counter() {
+  var _MiniReact$useState = MiniReact.useState(1),
+      _MiniReact$useState2 = _slicedToArray(_MiniReact$useState, 2),
+      state = _MiniReact$useState2[0],
+      setState = _MiniReact$useState2[1];
+
+  console.log("ss:", state, setState);
+  return MiniReact.createElement("h1", {
+    onclick: function onclick() {
+      return setState(function (state) {
+        return state + 1;
+      });
+    },
+    style: "user-select: none"
+  }, "Count: ", state);
 }
 
-var element = MiniReact.createElement("div", {
-  style: "background: salmon"
-}, MiniReact.createElement(App, {
-  name: "foo"
-}), MiniReact.createElement("h2", {
-  style: "text-align:right"
-}, "from MiniReact")); // const element = MiniReact.createElement(
+var element = MiniReact.createElement(Counter, null); // const element = MiniReact.createElement(
 //     "div",
 //     { id: "foo" },
 //     MiniReact.createElement("a", null, "bar"),

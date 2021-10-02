@@ -46,6 +46,10 @@ const isGone = (prev, next) => key => !(key in next)
 function updateDom(dom, prevProps, nextProps) {
     //Remove old or changed event listeners
     Object.keys(prevProps)
+        .forEach(name => {
+            console.log("name:", name)
+        })
+    Object.keys(prevProps)
         .filter(isEvent)        
         .filter(
             key => 
@@ -93,6 +97,7 @@ function updateDom(dom, prevProps, nextProps) {
 function commitRoot() {
     deletions.forEach(commitWork)
     commitWork(wipRoot.child)
+    console.log(wipRoot)
     currentRoot = wipRoot
     wipRoot = null
 }
@@ -194,10 +199,49 @@ function performUnitOfWork(fiber) {
     }
 }
 
+let wipFiber = null
+let hookIndex = null
+
 function updateFunctionComponent(fiber) {
     //TODO
+    wipFiber = fiber
+    hookIndex = 0
+    wipFiber.hooks = []
     const children = [fiber.type(fiber.props)]
     reconcileChildren(fiber, children)
+}
+
+function useState(initail) {
+    
+    const oldHook = 
+        wipFiber.alternate && 
+        wipFiber.alternate.hooks && 
+        wipFiber.alternate.hooks[hookIndex]
+    const hook = {
+        state: oldHook ? oldHook.state : initail,
+        queue: [],
+    }
+
+    const actions = oldHook ? oldHook.queue : []
+    actions.forEach(action => {
+        hook.state = action(hook.state)
+    })
+
+    const setState = action => {
+        console.log("action:", typeof action, JSON.stringify(action))
+        hook.queue.push(action)
+        wipRoot = {
+            dom: currentRoot.dom,
+            props: currentRoot.props,
+            alternate: currentRoot
+        }
+        nextUnitOfWork = wipRoot
+        deletions = []
+    }
+
+    wipFiber.hooks.push(hook)
+    hookIndex++
+    return [hook.state, setState]
 }
 
 function updateHostComponent(fiber) {
@@ -258,7 +302,7 @@ function reconcileChildren(wipFiber, elements) {
 
         if (index === 0) {
             wipFiber.child = newFiber 
-        } else {
+        } else if (element) {
             prevSibling.sibling = newFiber
         }
 
@@ -270,19 +314,21 @@ function reconcileChildren(wipFiber, elements) {
 const MiniReact = {
     createElement,
     render,
+    useState
 }
   
 /** @jsx MiniReact.createElement */
-function App(props) {
-    return <h1>Hi {props.name}</h1>
+function Counter() {
+    const [state, setState] = MiniReact.useState(1)
+    console.log("ss:", state, setState)
+    return (
+        <h1 onclick={() => setState((c) => c+1)} style="user-select: none">
+            Count: {state}
+        </h1>
+    )
 }
 
-const element = (
-    <div style="background: salmon">
-        <App name="foo" />
-        <h2 style="text-align:right">from MiniReact</h2>
-    </div>
-)
+const element = <Counter />
 // const element = MiniReact.createElement(
 //     "div",
 //     { id: "foo" },
